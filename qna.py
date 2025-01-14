@@ -26,8 +26,10 @@ def read_qa_pairs():
         return []
 
 def save_qa_pairs(qa_pairs):
+    existing_pairs = read_qa_pairs()
+    unique_pairs = [pair for pair in qa_pairs if pair not in existing_pairs]
     with open(QA_FILE, 'a', encoding='utf-8') as f:
-        for question, answer in qa_pairs:
+        for question, answer in unique_pairs:
             f.write(f'{question} = {answer}\n')
 
 def delete_qa_pair(question):
@@ -54,14 +56,35 @@ qa_frequency = 1200
 def send_qa_pairs():
     global stop_thread
     while not stop_thread:
-        qa_pairs = read_qa_pairs()
-        if qa_pairs and CHAT_ID:
-            question, answer = random.choice(qa_pairs)
-            bot.send_message(CHAT_ID, f'{escape_markdown_v2(question)} 👉 ||{escape_markdown_v2(answer)}||')
-        time.sleep(qa_frequency)
+        try:
+            qa_pairs = read_qa_pairs()
+            if qa_pairs and CHAT_ID:
+                question, answer = random.choice(qa_pairs)
+                bot.send_message(CHAT_ID, f'{escape_markdown_v2(question)} 👉 ||{escape_markdown_v2(answer)}||')
+            time.sleep(qa_frequency)
+        except Exception as e:
+            print(f"Error in Q&A thread: {e}")
+            time.sleep(5)  # Prevent rapid retries if an error occurs
 
 qa_thread = threading.Thread(target=send_qa_pairs)
 qa_thread.start()
+
+# Retry mechanism for bot messages
+def send_message_with_retries(chat_id, text, retries=5):
+    delay = 1
+    for _ in range(retries):
+        try:
+            return bot.send_message(chat_id, text)
+        except telebot.apihelper.ApiTelegramException as e:
+            if e.error_code == 429:  # Too many requests
+                retry_after = int(e.result_json['parameters']['retry_after'])
+                time.sleep(retry_after + delay)
+            else:
+                raise e
+        except Exception as e:
+            print(f"Error sending message: {e}")
+            time.sleep(delay)
+            delay *= 2
 
 # Bot Handlers
 @bot.message_handler(func=lambda message: not message.text.startswith('/'))
@@ -124,4 +147,4 @@ def telegram_webhook():
 # Main App Entry Point
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
-          
+    
