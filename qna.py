@@ -141,5 +141,9 @@ def telegram_webhook():
 
 # Main App Entry Point
 if __name__ == '__main__':
+    # Start Q&A thread immediately when the app runs
+    qa_thread = threading.Thread(target=send_qa_pairs)
+    qa_thread.start()
+    
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))
     
