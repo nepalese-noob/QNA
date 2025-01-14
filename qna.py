@@ -49,45 +49,39 @@ def escape_markdown_v2(text):
     escape_chars = r'_*[]()~`>#+-=|{}.!'
     return re.sub(f'([{re.escape(escape_chars)}])', r'\\\1', text)
 
-# Q&A Thread Logic with dynamic frequency update
+# Q&A Thread Logic
 stop_thread = False
-qa_frequency = 1200  # Initial frequency set to 1200 seconds (20 minutes)
+qa_frequency = 1200  # Default frequency
 
 def send_qa_pairs():
-    global stop_thread, qa_frequency
+    global stop_thread
     while not stop_thread:
         try:
             qa_pairs = read_qa_pairs()
             if qa_pairs and CHAT_ID:
                 question, answer = random.choice(qa_pairs)
                 bot.send_message(CHAT_ID, f'{escape_markdown_v2(question)} 👉 ||{escape_markdown_v2(answer)}||')
-            time.sleep(qa_frequency)  # Sleep time based on the dynamic frequency
+            time.sleep(qa_frequency)  # Use the updated frequency
         except Exception as e:
             print(f"Error in Q&A thread: {e}")
             time.sleep(5)  # Prevent rapid retries if an error occurs
 
-qa_thread = threading.Thread(target=send_qa_pairs)
-qa_thread.start()
+def restart_qa_thread():
+    global stop_thread, qa_thread
+    stop_thread = True
+    if qa_thread.is_alive():
+        qa_thread.join()  # Wait for the current thread to finish
+    stop_thread = False
+    qa_thread = threading.Thread(target=send_qa_pairs)
+    qa_thread.start()
 
-# Retry mechanism for bot messages
-def send_message_with_retries(chat_id, text, retries=5):
-    delay = 1
-    for _ in range(retries):
-        try:
-            return bot.send_message(chat_id, text)
-        except telebot.apihelper.ApiTelegramException as e:
-            if e.error_code == 429:  # Too many requests
-                retry_after = int(e.result_json['parameters']['retry_after'])
-                time.sleep(retry_after + delay)
-            else:
-                raise e
-        except Exception as e:
-            print(f"Error sending message: {e}")
-            time.sleep(delay)
-            delay *= 2
+# Function to ignore YouTube and Facebook links
+def contains_links(message):
+    urls = ['youtube', 'youtu.be', 'facebook.com', 'fb.com']
+    return any(url in message for url in urls)
 
 # Bot Handlers
-@bot.message_handler(func=lambda message: not message.text.startswith('/'))
+@bot.message_handler(func=lambda message: not message.text.startswith('/') and not contains_links(message.text))
 def handle_message(message):
     qa_pairs = parse_qa_message(message.text)
     if qa_pairs:
@@ -110,12 +104,9 @@ def handle_frequency(message):
     global qa_frequency
     try:
         _, frequency = message.text.split(' ', 1)
-        new_frequency = int(frequency.strip())
-        if new_frequency != qa_frequency:
-            qa_frequency = new_frequency  # Update the frequency without stopping the thread
-            bot.reply_to(message, escape_markdown_v2(f"Frequency set to {qa_frequency} seconds."))
-        else:
-            bot.reply_to(message, escape_markdown_v2("The frequency is already set to the provided value."))
+        qa_frequency = int(frequency.strip())
+        restart_qa_thread()  # Restart the thread with the new frequency
+        bot.reply_to(message, escape_markdown_v2(f"Frequency set to {qa_frequency} seconds."))
     except ValueError:
         bot.reply_to(message, escape_markdown_v2("Please provide a valid number."))
 
