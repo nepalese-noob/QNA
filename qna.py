@@ -44,6 +44,10 @@ def parse_qa_message(message):
     qa_pattern = re.compile(r'(.+?)[👉=⇒→÷>](.+)')
     return [(match.group(1).strip(), match.group(2).strip()) for line in message.split('\n') if (match := qa_pattern.search(line))]
 
+# Check if the message contains YouTube links
+def contains_youtube_link(message_text):
+    return 'youtube.com' in message_text or 'youtu.be' in message_text or 'you.tube' in message_text
+
 # Markdown Escaping
 def escape_markdown_v2(text):
     escape_chars = r'_*[]()~`>#+-=|{}.!'
@@ -89,6 +93,10 @@ def send_message_with_retries(chat_id, text, retries=5):
 # Bot Handlers
 @bot.message_handler(func=lambda message: not message.text.startswith('/'))
 def handle_message(message):
+    if contains_youtube_link(message.text):
+        bot.reply_to(message, escape_markdown_v2("YouTube links are ignored and not saved."))
+        return  # Ignore saving the YouTube link
+    
     qa_pairs = parse_qa_message(message.text)
     if qa_pairs:
         save_qa_pairs(qa_pairs)
@@ -147,4 +155,3 @@ def telegram_webhook():
 # Main App Entry Point
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))
-    
