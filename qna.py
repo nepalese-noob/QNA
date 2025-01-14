@@ -44,6 +44,10 @@ def parse_qa_message(message):
     qa_pattern = re.compile(r'(.+?)[👉=⇒→÷>](.+)')
     return [(match.group(1).strip(), match.group(2).strip()) for line in message.split('\n') if (match := qa_pattern.search(line))]
 
+# Check if the message contains YouTube links
+def contains_youtube_link(message_text):
+    return 'youtube.com' in message_text or 'youtu.be' in message_text or 'you.tube' in message_text
+
 # Markdown Escaping
 def escape_markdown_v2(text):
     escape_chars = r'_*[]()~`>#+-=|{}.!'
@@ -51,7 +55,7 @@ def escape_markdown_v2(text):
 
 # Q&A Thread Logic
 stop_thread = False
-qa_frequency = 1200  # Default frequency
+qa_frequency = 1200
 
 def send_qa_pairs():
     global stop_thread
@@ -61,28 +65,38 @@ def send_qa_pairs():
             if qa_pairs and CHAT_ID:
                 question, answer = random.choice(qa_pairs)
                 bot.send_message(CHAT_ID, f'{escape_markdown_v2(question)} 👉 ||{escape_markdown_v2(answer)}||')
-            time.sleep(qa_frequency)  # Use the updated frequency
+            time.sleep(qa_frequency)
         except Exception as e:
             print(f"Error in Q&A thread: {e}")
             time.sleep(5)  # Prevent rapid retries if an error occurs
 
-def restart_qa_thread():
-    global stop_thread, qa_thread
-    stop_thread = True
-    if qa_thread.is_alive():
-        qa_thread.join()  # Wait for the current thread to finish
-    stop_thread = False
-    qa_thread = threading.Thread(target=send_qa_pairs)
-    qa_thread.start()
+qa_thread = threading.Thread(target=send_qa_pairs)
+qa_thread.start()
 
-# Function to ignore YouTube and Facebook links
-def contains_links(message):
-    urls = ['youtube', 'youtu.be', 'facebook.com', 'fb.com']
-    return any(url in message for url in urls)
+# Retry mechanism for bot messages
+def send_message_with_retries(chat_id, text, retries=5):
+    delay = 1
+    for _ in range(retries):
+        try:
+            return bot.send_message(chat_id, text)
+        except telebot.apihelper.ApiTelegramException as e:
+            if e.error_code == 429:  # Too many requests
+                retry_after = int(e.result_json['parameters']['retry_after'])
+                time.sleep(retry_after + delay)
+            else:
+                raise e
+        except Exception as e:
+            print(f"Error sending message: {e}")
+            time.sleep(delay)
+            delay *= 2
 
 # Bot Handlers
-@bot.message_handler(func=lambda message: not message.text.startswith('/') and not contains_links(message.text))
+@bot.message_handler(func=lambda message: not message.text.startswith('/'))
 def handle_message(message):
+    if contains_youtube_link(message.text):
+        bot.reply_to(message, escape_markdown_v2("YouTube links are ignored and not saved."))
+        return  # Ignore saving the YouTube link
+    
     qa_pairs = parse_qa_message(message.text)
     if qa_pairs:
         save_qa_pairs(qa_pairs)
@@ -105,7 +119,6 @@ def handle_frequency(message):
     try:
         _, frequency = message.text.split(' ', 1)
         qa_frequency = int(frequency.strip())
-        restart_qa_thread()  # Restart the thread with the new frequency
         bot.reply_to(message, escape_markdown_v2(f"Frequency set to {qa_frequency} seconds."))
     except ValueError:
         bot.reply_to(message, escape_markdown_v2("Please provide a valid number."))
@@ -141,9 +154,5 @@ def telegram_webhook():
 
 # Main App Entry Point
 if __name__ == '__main__':
-    # Start Q&A thread immediately when the app runs
-    qa_thread = threading.Thread(target=send_qa_pairs)
-    qa_thread.start()
-    
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))
     
