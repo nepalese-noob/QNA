@@ -49,7 +49,7 @@ def escape_markdown_v2(text):
     escape_chars = r'_*[]()~`>#+-=|{}.!'
     return re.sub(f'([{re.escape(escape_chars)}])', r'\\\1', text)
 
-# Q&A Thread Logic with real-time frequency update
+# Q&A Thread Logic with dynamic frequency update
 stop_thread = False
 qa_frequency = 1200  # Initial frequency set to 1200 seconds (20 minutes)
 
@@ -61,7 +61,7 @@ def send_qa_pairs():
             if qa_pairs and CHAT_ID:
                 question, answer = random.choice(qa_pairs)
                 bot.send_message(CHAT_ID, f'{escape_markdown_v2(question)} 👉 ||{escape_markdown_v2(answer)}||')
-            time.sleep(qa_frequency)
+            time.sleep(qa_frequency)  # Sleep time based on the dynamic frequency
         except Exception as e:
             print(f"Error in Q&A thread: {e}")
             time.sleep(5)  # Prevent rapid retries if an error occurs
@@ -107,18 +107,13 @@ def handle_delete(message):
 
 @bot.message_handler(commands=['frequency'])
 def handle_frequency(message):
-    global qa_frequency, stop_thread, qa_thread
+    global qa_frequency
     try:
         _, frequency = message.text.split(' ', 1)
         new_frequency = int(frequency.strip())
         if new_frequency != qa_frequency:
-            qa_frequency = new_frequency  # Update the frequency
-            stop_thread = True  # Stop the current thread
-            qa_thread.join()  # Ensure the previous thread is finished
-            stop_thread = False  # Allow new thread to start
-            qa_thread = threading.Thread(target=send_qa_pairs)  # Create a new thread with updated frequency
-            qa_thread.start()
-            bot.reply_to(message, escape_markdown_v2(f"Frequency set to {qa_frequency} seconds and thread restarted."))
+            qa_frequency = new_frequency  # Update the frequency without stopping the thread
+            bot.reply_to(message, escape_markdown_v2(f"Frequency set to {qa_frequency} seconds."))
         else:
             bot.reply_to(message, escape_markdown_v2("The frequency is already set to the provided value."))
     except ValueError:
