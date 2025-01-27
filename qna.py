@@ -102,7 +102,7 @@ def handle_message(message):
         save_qa_pairs(qa_pairs)
         bot.reply_to(message, escape_markdown_v2("Q&A pairs saved."))
     else:
-        bot.reply_to(message, escape_markdown_v2("No Q&A pairs found."))
+        bot.reply_to(message, escape_markdown_v2(""))
 
 @bot.message_handler(commands=['delete'])
 def handle_delete(message):
