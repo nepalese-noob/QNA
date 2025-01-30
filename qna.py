@@ -123,13 +123,13 @@ def handle_frequency(message):
     except ValueError:
         bot.reply_to(message, escape_markdown_v2("Please provide a valid number."))
 
-@bot.message_handler(commands=['stop'])
+@bot.message_handler(commands=['stop_qna'])
 def handle_stop(message):
     global stop_thread
     stop_thread = True
     bot.reply_to(message, escape_markdown_v2("Q&A thread stopped."))
 
-@bot.message_handler(commands=['start'])
+@bot.message_handler(commands=['start_qna'])
 def handle_start(message):
     global stop_thread, qa_thread
     if not qa_thread.is_alive():
