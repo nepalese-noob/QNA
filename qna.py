@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 API_TOKEN = os.getenv('API_TOKEN')  # Ensure to set API_TOKEN in your Render environment
 QA_FILE = 'qa.txt'
-CHAT_ID = int(os.getenv('CHAT_ID', -1001597616235))  # Your group chat ID from environment or fallback
+CHAT_ID = int(os.getenv('CHAT_ID', -1002308497316))  # Your group chat ID from environment or fallback
 bot = telebot.TeleBot(API_TOKEN, parse_mode='MarkdownV2')
 
 # Flask App
